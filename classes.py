@@ -1,16 +1,9 @@
-from collections import defaultdict
-from datetime import datetime
+import numpy as np
 import Settings
-import os
-from urllib.request import urlopen  # I don't understand why this is required. But the query wouldn't work without it.
-# It would work for a simple non-hourly query. Seems like it needs this as part of
-# the time-out
-from pprint import pprint
+from urllib.request import urlopen
 import json
-import ssl
 
-
-class NrelQuery:
+class DailyWACOutput:
     url = "https://developer.nrel.gov/api/pvwatts/"
     version = "v6"
     format = "json"  # json or xml
@@ -19,107 +12,120 @@ class NrelQuery:
     array_type = 1
     module_type = 1
     losses = 15
-
-    def __init__(self, lat=-37.8978, long=145.0709, azimuth=0, tilt=0, hourly=True):
-        # This class should have initialization attributes for the _range_ of azimuth/tilt
-        # or there should be a wrapping class
-
+    months = np.arange(12) + 1 # 1 .. 24
+    hours = np.arange(24) # 0 .. 23
+    daysPerMonth = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
+    
+    def __init__(self,
+            lat, long,
+            azimuth_granularity=15,
+            tilt_min=10, tilt_max=30, tilt_granularity=10):
         self.lat = lat
         self.long = long
-        self.azimuth = azimuth
-        self.tilt = tilt
-        self.hourly = hourly
-        self.ac = {}
-
-    @property
-    def timeframe(self):
-        if self.hourly:
-            return "&timeframe=hourly"
-        else:
-            return ""
-
-    def request(self):
-        requesturl = f"{self.url}{self.version}.{self.format}?api_key={self.api_key}&lat={self.lat}&lon={self.long}" \
-                     f"&system_capacity={self.system_capacity}&azimuth={self.azimuth}&tilt={self.tilt}" \
-                     f"&array_type={self.array_type}&module_type={self.module_type}" \
-                     f"&losses={self.losses}{self.timeframe}"
+        self.azimuths = np.arange(0,360,azimuth_granularity) # 0, 15 .. 345
+        self.tilts = np.arange(tilt_min,tilt_max,tilt_granularity) # 10, 20, 30
+        self.SEP = '\t'
+        self.acOut_date_hours_azimuth_tilt = self.__ac_output_azimuth_tilt()
+        return None
+    
+    def __dates_hours( self ):
+        datesHours = np.zeros((len(self.hours) * np.sum(self.daysPerMonth), 3))
+        idx = 0
+        for month in self.months:
+            m = np.where(self.months == month)[0][0]
+            days = np.arange(self.daysPerMonth[m])+1
+            for day in days:
+                datesHours[idx : idx + len(self.hours),0] = month
+                datesHours[idx : idx + len(self.hours),1] = day
+                datesHours[idx : idx + len(self.hours),2] = self.hours
+                idx += len(self.hours)
+        return datesHours
+    
+    def __ac_output_azimuth_tilt( self ):
+        datesHours = self.__dates_hours()
+        ac_output_azimuth_tilt = np.zeros((len(self.hours)
+                                        * np.sum(self.daysPerMonth)
+                                        * len(self.azimuths)
+                                        * len(self.tilts), 6))
+        idx = 0
+        for az in self.azimuths:
+            for tilt in self.tilts:
+                ac_output_azimuth_tilt[idx :
+                    idx + len(self.hours) * np.sum(self.daysPerMonth), 0:3] = datesHours
+                ac_output_azimuth_tilt[idx :
+                    idx + len(self.hours) * np.sum(self.daysPerMonth), 3] = az
+                ac_output_azimuth_tilt[idx :
+                    idx + len(self.hours) * np.sum(self.daysPerMonth), 4] = tilt
+                idx += len(self.hours) * np.sum(self.daysPerMonth)
+        return ac_output_azimuth_tilt
+    
+    def generate_request_url( self, azimuth, tilt ):
+        requesturl = self.url + self.version + '.' + self.format \
+            + '?api_key=' + self.api_key \
+            + '&lat=' + str(self.lat) + '&lon=' + str(self.long) \
+            + '&system_capacity=' + str(self.system_capacity) \
+            + '&azimuth=' + str(azimuth) + '&tilt=' + str(tilt) \
+            + '&array_type=' + str(self.array_type) \
+            + '&module_type=' + str(self.module_type) \
+            + '&losses=' + str(self.losses) \
+            + '&timeframe=hourly'
         return requesturl
-
-
-class NrelACOutput:
-    #  This class should be folded into the main NRELQuery
-
-    def __init__(self, lat, long):
-        self.lat = lat
-        self.long = long
-        self.hours = defaultdict(dict)
-
-    def write_sequential_file(self, ac, azimuth, tilt, write_header):
-        # add hour = 0, 1, 2 ... 8760. azimuth, tilt, ac = output
-
-        output_file_path = os.path.join(Settings.output_folder, f"lat{self.lat}_long{self.long}.txt")
-
-        if write_header:
-            with open(output_file_path, 'w') as fl:
-                fl.write("Date\tHour\tAzimuth\tTilt\tACWattHours\n")
-
-        hr = 0
-
-        with open(output_file_path, 'a') as fl:
-            for wattHours in ac:
-                date_string = self.dateFromHour(hr)
-                hour = hr % 24
-                fl.write(f"{date_string}\t{hour}\t{azimuth}\t{tilt}\t{wattHours}\n")
-                hr += 1
-
-    # def writeTabularFile(self, hr, azimuth, tilt, wattHours):
-    #     #Write in tabular form: each tilt/az is a different column. 8760 rows
-    #     #Check if this is the first time writing. If so write headers
-    #     table = []
-
-    def dateFromHour(self, hr):
-        day_num = int(hr / 24) + 1
-        date_string = datetime.strptime("2022-" + str(day_num).zfill(3), "%Y-%j").strftime("%d-%m")
-        return date_string
-
-
-class NrelMaster:
-    #  takes the main parameters lat, long, azimuth and tilt range
-    #  manages the looping through the NrelQuery
-    def __init__(self, lat: float, long: float, azimuth_granularity=15, tilt_min=10, tilt_max=30,
-                 tilt_granularity=10):
-        self.lat = lat
-        self.long = long
-        self.azimuth_granularity = azimuth_granularity
-        self.tilt_min = tilt_min
-        self.tilt_max = tilt_max
-        self.tilt_granularity = tilt_granularity
-
-    nrel_hourly_results = defaultdict(dict)
-
-    def query_array(self):
-        context = ssl._create_unverified_context
-        ssl._create_default_https_context = context
-
-        ac_output = NrelACOutput(self.lat, self.long)
-        iteration_count = 0
-        for azimuth in range(0, 360, self.azimuth_granularity):
-            for tilt in range(self.tilt_min, self.tilt_max + 1, self.tilt_granularity):
-                iteration_count += 1
-                print(f"{iteration_count}:\taz:{azimuth}\ttilt:{tilt}")
-
-                nrel = NrelQuery(self.lat, self.long, azimuth=azimuth, tilt=tilt, hourly=True)
-
-                with urlopen(nrel.request(), timeout=2) as response:
-                    json_out = json.loads(response.read())
-                    if len(json_out) > 0:
-                        nrel.ac = json_out['outputs']['ac']
-
-                self.nrel_hourly_results[azimuth][tilt] = nrel.ac  # add the ac output to a results dictionary
-
-    def aggregate_hourly_results(self):
-        for azimuth in range(0, 360, self.azimuth_granularity):
-            for tilt in range(self.tilt_min, self.tilt_max+1, self.tilt_granularity):
-                hrly = self.nrel_hourly_results[azimuth][tilt]
-                #  this is 8760 hourly results
-
+    
+    def query_acoutput_from_nrel( self, requesturl ):
+        # TODO: Handle exception correctly.
+        # Calculate average on an ongoing basis and store last
+        # successful API reuqest in order to be able to restart.
+        with urlopen( requesturl, timeout=2) as response:
+            out = json.loads(response.read())
+        return out['outputs']['ac']
+    
+    def scan_azimuths_tilts( self ):
+    # Iterate over all settings of Azimuth and Tilt at lat/long coordignates
+    # and query AC Power output
+        for az in self.azimuths:
+            for tilt in self.tilts:
+                print(az, tilt)
+                rurl = self.generate_request_url( az, tilt )
+                ac_out = self.query_acoutput_from_nrel( rurl )
+                # Write AC Power output to list
+                self.acOut_date_hours_azimuth_tilt[
+                    (self.acOut_date_hours_azimuth_tilt[:, 3] == az)
+                    * (self.acOut_date_hours_azimuth_tilt[:, 4] == tilt),
+                    -1] = ac_out
+        return None
+    
+    def calculate_daily_ac_average( self ):
+        res = np.zeros( (len(self.months),
+            len(self.hours),
+            len(self.azimuths),
+            len(self.tilts)) )
+        data = self.acOut_date_hours_azimuth_tilt
+        for month in self.months:
+            data_for_month = data[ data[:,0] == month ][:,2:] # remove Day and Month column
+            for hour in self.hours:
+                data_for_hour = data_for_month[ data_for_month[:,0] == hour][:,1:] # remove Hour column
+                for azimuth in self.azimuths:
+                    data_for_azimuth = data_for_hour[ data_for_hour[:,0] == azimuth][:,1:] # remove Azimuth column
+                    for tilt in self.tilts:
+                        data_for_tilt = data_for_azimuth[ data_for_azimuth[:,0] == tilt ]
+                        res[self.months == month,
+                                self.hours == hour,
+                                self.azimuths == azimuth,
+                                self.tilts == tilt] = np.average(data_for_tilt, axis=0)[1]
+        self.daily_average_acout = res
+        return None
+    
+    def write_average_ac_to_csv( self ):
+    # Pivot list to months/days and azimuth/tilt
+        with open('ac_out_writeline.csv', 'w') as f:
+            header = 'Date' + self.SEP + \
+                self.SEP.join(['A:{}-T:{}'.format(a,t) for t in self.tilts for a in self.azimuths])
+            f.write(header + '\n')
+            for month in self.months:
+                m = np.where(self.months == month)[0][0]
+                for h in self.hours:
+                    line = 'M:{:02d}-H:{:02d}'.format(month, h) + self.SEP
+                    line += self.SEP.join( ['{:.4f}'.format(ac)
+                        for t in self.tilts for ac in self.daily_average_acout[m, h, :, np.where(self.tilts == t)[0][0]] ])
+                    f.write(line + '\n')
+        return None

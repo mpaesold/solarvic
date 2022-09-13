@@ -1,24 +1,15 @@
-# This is a sample Python script.
 import Settings
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+from classes import DailyWACOutput
+import numpy as np
 
+def main():
+    dailywacouput = DailyWACOutput(Settings.lat,
+        Settings.long, 180, 10, 31, 15)
 
-# def print_hi(name):
-#     # Use a breakpoint in the code line below to debug your script.
-#     print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-#
-#
-# # Press the green button in the gutter to run the script.
-# if __name__ == '__main__':
-#     print_hi('PyCharm')
-#
-# # See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    dailywacouput.scan_azimuths_tilts()
+    dailywacouput.calculate_daily_ac_average()
+    dailywacouput.write_average_ac_to_csv()
+    return 0
 
-
-from classes import NrelMaster
-
-master = NrelMaster(Settings.lat, Settings.long, 90, 10, 30, 15)
-
-master.query_array()
-master.write_sequential_file()
+if __name__ == "__main__":
+    main()
