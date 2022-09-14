@@ -59,6 +59,11 @@ class DailyWACOutput:
                 idx += len(self.hours) * np.sum(self.daysPerMonth)
         return ac_output_azimuth_tilt
     
+    def azimuths_tilts( self ):
+        for t in self.tilts:
+            for az in self.azimuths:
+                yield (t, az)
+
     def generate_request_url( self, azimuth, tilt ):
         requesturl = self.url + self.version + '.' + self.format \
             + '?api_key=' + self.api_key \
@@ -82,16 +87,15 @@ class DailyWACOutput:
     def scan_azimuths_tilts( self ):
     # Iterate over all settings of Azimuth and Tilt at lat/long coordignates
     # and query AC Power output
-        for az in self.azimuths:
-            for tilt in self.tilts:
-                print(az, tilt)
-                rurl = self.generate_request_url( az, tilt )
-                ac_out = self.query_acoutput_from_nrel( rurl )
-                # Write AC Power output to list
-                self.acOut_date_hours_azimuth_tilt[
-                    (self.acOut_date_hours_azimuth_tilt[:, 3] == az)
-                    * (self.acOut_date_hours_azimuth_tilt[:, 4] == tilt),
-                    -1] = ac_out
+        for (tilt, az) in self.azimuths_tilts():
+            print(az, tilt)
+            rurl = self.generate_request_url( az, tilt )
+            ac_out = self.query_acoutput_from_nrel( rurl )
+            # Write AC Power output to list
+            self.acOut_date_hours_azimuth_tilt[
+                (self.acOut_date_hours_azimuth_tilt[:, 3] == az)
+                * (self.acOut_date_hours_azimuth_tilt[:, 4] == tilt),
+                -1] = ac_out
         return None
     
     def calculate_daily_ac_average( self ):
