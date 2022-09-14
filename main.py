@@ -1,9 +1,9 @@
 import Settings
-from classes import DailyWACOutput
+import DailyWACOutput as dwaco
 import numpy as np
 
 def main():
-    dailywacouput = DailyWACOutput(Settings.lat,
+    dailywacouput = dwaco.DailyWACOutput(Settings.lat,
         Settings.long, 180, 10, 31, 15)
 
     dailywacouput.scan_azimuths_tilts()
