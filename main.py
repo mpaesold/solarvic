@@ -4,7 +4,7 @@ import numpy as np
 
 def main():
     dailywacouput = dwaco.DailyWACOutput(Settings.lat,
-        Settings.long, 180, 10, 31, 15)
+        Settings.long, 180, 10, 31, 15, Settings.api_key)
 
     
     #rurl = dailywacouput.generate_request_url( 0, 10 )

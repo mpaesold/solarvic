@@ -1,5 +1,4 @@
 import numpy as np
-import Settings
 from urllib.request import urlopen
 import json
 import os
@@ -8,7 +7,6 @@ class DailyWACOutput:
     url = "https://developer.nrel.gov/api/pvwatts/"
     version = "v6"
     format = "json"  # json or xml
-    api_key = Settings.nrel_api_key
     system_capacity = 1
     array_type = 1
     module_type = 1
@@ -20,15 +18,18 @@ class DailyWACOutput:
     def __init__(self,
             lat, long,
             azimuth_granularity=15,
-            tilt_min=10, tilt_max=30, tilt_granularity=10):
+            tilt_min=10, tilt_max=30, tilt_granularity=10, api_key):
         self.lat = lat
         self.long = long
+        self.api_key = api_key
         self.azimuths = np.arange(0, 360, azimuth_granularity) # 0, 15 .. 345
         self.tilts = np.arange(tilt_min, tilt_max, tilt_granularity) # 10, 20, 30
         self.daily_average_acout = np.zeros( (len(self.months),
             len(self.hours),
             len(self.azimuths),
             len(self.tilts)) )
+        self.monthindex = np.array( [ [ np.sum( self.daysPerMonth[:m] ), np.sum( self.daysPerMonth[:m+1] )]
+                  for m in self.months ] )
         return None
     
     def azimuths_tilts( self ):
@@ -54,7 +55,7 @@ class DailyWACOutput:
         # successful API reuqest in order to be able to restart.
         with urlopen( requesturl, timeout=2) as response:
             out = json.loads(response.read())
-        return out['outputs']['ac']
+        return np.array( out['outputs']['ac'] )
     
     def scan_azimuths_tilts( self ):
     # Iterate over all settings of Azimuth and Tilt at lat/long coordignates
@@ -71,13 +72,11 @@ class DailyWACOutput:
         Calculate average Wac output for each month and a fixed seting of
         azimuth and tilt.
         """
-        wac = np.array( wac ).reshape( (365, 24) )
-        # Iterate months
+        wac = wac.reshape( (365, 24) )
         for m in self.months:
             # Average over hours for each month and
-            # write result for month and Az/Tilt setting to self.res
-            m0 = np.sum( self.daysPerMonth[:m] )
-            m1 = np.sum( self.daysPerMonth[:m + 1] )
+            m0 = self.monthindex[m,0] # First day in year of month m
+            m1 = self.monthindex[m,1] # Last day in year of month m
             self.daily_average_acout[ m, :, 
                                      self.azimuths == az,
                                      self.tilts == tilt ] = np.average( wac[ m0:m1,:], axis=0 )
