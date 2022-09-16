@@ -2,6 +2,7 @@ import numpy as np
 import Settings
 from urllib.request import urlopen
 import json
+import os
 
 class DailyWACOutput:
     url = "https://developer.nrel.gov/api/pvwatts/"
@@ -121,7 +122,7 @@ class DailyWACOutput:
     
     def write_average_ac_to_csv( self ):
     # Pivot list to months/days and azimuth/tilt
-        with open('ac_out_writeline.csv', 'w') as f:
+        with open('./output/ac_out_writeline.csv', 'w') as f:
             header = 'Date' + self.SEP + \
                 self.SEP.join(['A:{}-T:{}'.format(a,t) for t in self.tilts for a in self.azimuths])
             f.write(header + '\n')
