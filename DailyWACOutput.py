@@ -13,7 +13,7 @@ class DailyWACOutput:
     array_type = 1
     module_type = 1
     losses = 15
-    months = np.arange(12) + 1 # 1 .. 24
+    months = np.arange(12) # 0 .. 23
     hours = np.arange(24) # 0 .. 23
     daysPerMonth = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
     
@@ -23,42 +23,13 @@ class DailyWACOutput:
             tilt_min=10, tilt_max=30, tilt_granularity=10):
         self.lat = lat
         self.long = long
-        self.azimuths = np.arange(0,360,azimuth_granularity) # 0, 15 .. 345
-        self.tilts = np.arange(tilt_min,tilt_max,tilt_granularity) # 10, 20, 30
-        self.SEP = '\t'
-        self.acOut_date_hours_azimuth_tilt = self.__ac_output_azimuth_tilt()
+        self.azimuths = np.arange(0, 360, azimuth_granularity) # 0, 15 .. 345
+        self.tilts = np.arange(tilt_min, tilt_max, tilt_granularity) # 10, 20, 30
+        self.daily_average_acout = np.zeros( (len(self.months),
+            len(self.hours),
+            len(self.azimuths),
+            len(self.tilts)) )
         return None
-    
-    def __dates_hours( self ):
-        datesHours = np.zeros((len(self.hours) * np.sum(self.daysPerMonth), 3))
-        idx = 0
-        for month in self.months:
-            m = np.where(self.months == month)[0][0]
-            days = np.arange(self.daysPerMonth[m])+1
-            for day in days:
-                datesHours[idx : idx + len(self.hours),0] = month
-                datesHours[idx : idx + len(self.hours),1] = day
-                datesHours[idx : idx + len(self.hours),2] = self.hours
-                idx += len(self.hours)
-        return datesHours
-    
-    def __ac_output_azimuth_tilt( self ):
-        datesHours = self.__dates_hours()
-        ac_output_azimuth_tilt = np.zeros((len(self.hours)
-                                        * np.sum(self.daysPerMonth)
-                                        * len(self.azimuths)
-                                        * len(self.tilts), 6))
-        idx = 0
-        for az in self.azimuths:
-            for tilt in self.tilts:
-                ac_output_azimuth_tilt[idx :
-                    idx + len(self.hours) * np.sum(self.daysPerMonth), 0:3] = datesHours
-                ac_output_azimuth_tilt[idx :
-                    idx + len(self.hours) * np.sum(self.daysPerMonth), 3] = az
-                ac_output_azimuth_tilt[idx :
-                    idx + len(self.hours) * np.sum(self.daysPerMonth), 4] = tilt
-                idx += len(self.hours) * np.sum(self.daysPerMonth)
-        return ac_output_azimuth_tilt
     
     def azimuths_tilts( self ):
         for t in self.tilts:
@@ -92,45 +63,37 @@ class DailyWACOutput:
             print(az, tilt)
             rurl = self.generate_request_url( az, tilt )
             ac_out = self.query_acoutput_from_nrel( rurl )
-            # Write AC Power output to list
-            self.acOut_date_hours_azimuth_tilt[
-                (self.acOut_date_hours_azimuth_tilt[:, 3] == az)
-                * (self.acOut_date_hours_azimuth_tilt[:, 4] == tilt),
-                -1] = ac_out
+            self.calculate_daily_ac_average( ac_out, az, tilt)
+        return None
+
+    def calculate_daily_ac_average(self, wac, az, tilt):
+        """
+        Calculate average Wac output for each month and a fixed seting of
+        azimuth and tilt.
+        """
+        wac = np.array( wac ).reshape( (365, 24) )
+        # Iterate months
+        for m in self.months:
+            # Average over hours for each month and
+            # write result for month and Az/Tilt setting to self.res
+            m0 = np.sum( self.daysPerMonth[:m] )
+            m1 = np.sum( self.daysPerMonth[:m + 1] )
+            self.daily_average_acout[ m, :, 
+                                     self.azimuths == az,
+                                     self.tilts == tilt ] = np.average( wac[ m0:m1,:], axis=0 )
         return None
     
-    def calculate_daily_ac_average( self ):
-        res = np.zeros( (len(self.months),
-            len(self.hours),
-            len(self.azimuths),
-            len(self.tilts)) )
-        data = self.acOut_date_hours_azimuth_tilt
-        for month in self.months:
-            data_for_month = data[ data[:,0] == month ][:,2:] # remove Day and Month column
-            for hour in self.hours:
-                data_for_hour = data_for_month[ data_for_month[:,0] == hour][:,1:] # remove Hour column
-                for azimuth in self.azimuths:
-                    data_for_azimuth = data_for_hour[ data_for_hour[:,0] == azimuth][:,1:] # remove Azimuth column
-                    for tilt in self.tilts:
-                        data_for_tilt = data_for_azimuth[ data_for_azimuth[:,0] == tilt ]
-                        res[self.months == month,
-                                self.hours == hour,
-                                self.azimuths == azimuth,
-                                self.tilts == tilt] = np.average(data_for_tilt, axis=0)[1]
-        self.daily_average_acout = res
-        return None
-    
-    def write_average_ac_to_csv( self ):
+    def write_average_ac_to_csv( self, SEP='\t' ):
     # Pivot list to months/days and azimuth/tilt
         with open('./output/ac_out_writeline.csv', 'w') as f:
-            header = 'Date' + self.SEP + \
-                self.SEP.join(['A:{}-T:{}'.format(a,t) for t in self.tilts for a in self.azimuths])
+            header = 'Date' + SEP + \
+                SEP.join(['A:{}-T:{}'.format(a,t) for t in self.tilts for a in self.azimuths])
             f.write(header + '\n')
             for month in self.months:
-                m = np.where(self.months == month)[0][0]
                 for h in self.hours:
-                    line = 'M:{:02d}-H:{:02d}'.format(month, h) + self.SEP
-                    line += self.SEP.join( ['{:.4f}'.format(ac)
-                        for t in self.tilts for ac in self.daily_average_acout[m, h, :, np.where(self.tilts == t)[0][0]] ])
+                    line = 'M:{:02d}-H:{:02d}'.format(month+1, h) + SEP
+                    line += SEP.join( ['{:.4f}'.format(ac)
+                        for t in self.tilts for ac in
+                                            self.daily_average_acout[month, h, :, np.where(self.tilts == t)[0][0]] ])
                     f.write(line + '\n')
         return None
