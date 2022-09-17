@@ -103,12 +103,12 @@ def scan_azimuths_tilts( dwaco ):
         dwaco.calculate_daily_ac_average( ac_out, az, tilt)
     return None
 
-def write_average_ac_to_csv( dwaco, SEP='\t', WACFORMAT='{:.4f}',
+def write_average_ac_to_csv( dwaco, outfile, SEP='\t', WACFORMAT='{:.4f}',
                             DATE='M:{:02d}-H:{:02d}', HEADER='A:{}-T:{}' ):
     """
     Writes the average AC power to CSV file.
     """
-    with open('./output/ac_out_writeline.csv', 'w') as f:
+    with open(outfile, 'w') as f:
         header = 'Date' + SEP + \
             SEP.join([HEADER.format(a,t) for t in dwaco.tilts for a in dwaco.azimuths])
         f.write(header + '\n')
