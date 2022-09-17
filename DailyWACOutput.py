@@ -2,19 +2,13 @@ import numpy as np
 from urllib.request import urlopen
 import json
 
+months = np.arange(12) # 0 .. 23
+hours = np.arange(24) # 0 .. 23
+daysPerMonth = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
+
 # Class definitions
 
 class DailyWACOutput:
-    url = "https://developer.nrel.gov/api/pvwatts/"
-    version = "v6"
-    format = "json"  # json or xml
-    system_capacity = 1
-    array_type = 1
-    module_type = 1
-    losses = 15
-    months = np.arange(12) # 0 .. 23
-    hours = np.arange(24) # 0 .. 23
-    daysPerMonth = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
     
     def __init__(self,
             lat, long, api_key,
@@ -28,12 +22,12 @@ class DailyWACOutput:
         self.api_key = api_key
         self.azimuths = np.arange(0, 360, azimuth_granularity) # 0, 15 .. 345
         self.tilts = np.arange(tilt_min, tilt_max, tilt_granularity) # 10, 20, 30
-        self.daily_average_acout = np.zeros( (len(self.months),
-            len(self.hours),
+        self.daily_average_acout = np.zeros( (len(months),
+            len(hours),
             len(self.azimuths),
             len(self.tilts)) )
-        self.monthindex = np.array( [ [ np.sum( self.daysPerMonth[:m] ), np.sum( self.daysPerMonth[:m+1] )]
-                  for m in self.months ] )
+        self.monthindex = np.array( [ [ np.sum( daysPerMonth[:m] ), np.sum( daysPerMonth[:m+1] )]
+                  for m in months ] )
         return None
     
     def azimuths_tilts( self ):
@@ -45,18 +39,25 @@ class DailyWACOutput:
             for az in self.azimuths:
                 yield (t, az)
 
-    def generate_request_url( self, azimuth, tilt ):
+    def generate_request_url( self, azimuth, tilt,
+                             url = "https://developer.nrel.gov/api/pvwatts/",
+                             version = "v6",
+                             format = "json",  # json or xml
+                             system_capacity = '1',
+                             array_type = '1',
+                             module_type = '1',
+                             losses = '15'):
         """
         Returns a string for the request URL that can be sent to NREL.
         """
-        requesturl = self.url + self.version + '.' + self.format \
+        requesturl = url + version + '.' + format \
             + '?api_key=' + self.api_key \
             + '&lat=' + str(self.lat) + '&lon=' + str(self.long) \
-            + '&system_capacity=' + str(self.system_capacity) \
+            + '&system_capacity=' + system_capacity \
             + '&azimuth=' + str(azimuth) + '&tilt=' + str(tilt) \
-            + '&array_type=' + str(self.array_type) \
-            + '&module_type=' + str(self.module_type) \
-            + '&losses=' + str(self.losses) \
+            + '&array_type=' + array_type \
+            + '&module_type=' + module_type \
+            + '&losses=' + losses \
             + '&timeframe=hourly'
         return requesturl
     
@@ -77,7 +78,7 @@ class DailyWACOutput:
         azimuth and tilt.
         """
         wac = wac.reshape( (365, 24) )
-        for m in self.months:
+        for m in months:
             # Average over hours for each month and
             m0 = self.monthindex[m,0] # First day in year of month m
             m1 = self.monthindex[m,1] # Last day in year of month m
@@ -112,8 +113,8 @@ def write_average_ac_to_csv( dwaco, outfile, SEP='\t', WACFORMAT='{:.4f}',
         header = 'Date' + SEP + \
             SEP.join([HEADER.format(a,t) for t in dwaco.tilts for a in dwaco.azimuths])
         f.write(header + '\n')
-        for month in dwaco.months:
-            for h in dwaco.hours:
+        for month in months:
+            for h in hours:
                 line = DATE.format(month+1, h) + SEP
                 line += SEP.join( [ WACFORMAT.format(ac)
                     for t in dwaco.tilts for ac in
