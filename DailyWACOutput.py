@@ -1,6 +1,7 @@
 import numpy as np
 from urllib.request import urlopen
 import json
+import matplotlib.pyplot as plt
 
 months = np.arange(12) # 0 .. 23
 hours = np.arange(24) # 0 .. 23
@@ -109,4 +110,43 @@ def write_average_ac_to_csv( dwaco, outfile, SEP='\t', WACFORMAT='{:.4f}',
                         (dwaco.azimuth_tilts[:,1] == t) ][0] ) \
                         for (a, t) in dwaco.azimuth_tilts ] )
                 f.write(line + '\n')
+    return None
+
+def calculate_power_output_hourly( dwaco, areas ):
+    """
+    Calculate expected power output per hour of day by month.
+    """
+    pout = np.zeros((len(hours), len(months)))
+    for m in months:
+        for h in hours:
+            pout[h, m] = np.dot(dwaco.daily_average_acout[m, h, :], areas) 
+    return pout / 1000.0
+
+def calculate_power_output_daily(pout_hr):
+    """
+    Sum hourly power output and return daily power output.
+    """
+    return np.sum(pout_hr, axis=0)
+
+def calculate_power_output_monthly(pout_day):
+    """
+    Calculate expected power output for whole month.
+    """
+    return pout_day * daysPerMonth
+
+def plot_hourly_power_output(pout, outfile, savefig=True):
+    """
+    Plot typical day power output
+    """
+    plt.plot(pout)
+    plt.ylabel('Power per hour')
+    plt.xlabel('Hour')
+    plt.xticks( hours )
+    plt.legend( months+1 )
+    plt.title( 'Typical day power output' )
+    plt.grid(visible=True, axis='y')
+    if savefig:
+        plt.savefig(outfile)
+    else:
+        plt.show()
     return None
