@@ -11,34 +11,21 @@ daysPerMonth = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
 class DailyWACOutput:
     
     def __init__(self,
-            lat, long, api_key,
-            azimuth_granularity=15,
-            tilt_min=10, tilt_max=30, tilt_granularity=10):
+                 lat, long, api_key, azimuth_tilts):
         """
         Creator for class DailyWACOutput.
         """
         self.lat = lat
         self.long = long
         self.api_key = api_key
-        self.azimuths = np.arange(0, 360, azimuth_granularity) # 0, 15 .. 345
-        self.tilts = np.arange(tilt_min, tilt_max, tilt_granularity) # 10, 20, 30
+        self.azimuth_tilts = azimuth_tilts
         self.daily_average_acout = np.zeros( (len(months),
             len(hours),
-            len(self.azimuths),
-            len(self.tilts)) )
+            len(self.azimuth_tilts) ))
         self.monthindex = np.array( [ [ np.sum( daysPerMonth[:m] ), np.sum( daysPerMonth[:m+1] )]
                   for m in months ] )
         return None
     
-    def azimuths_tilts( self ):
-        """
-        Generator that yields all possible combinations of azimuth and tilt
-        settings.
-        """
-        for t in self.tilts:
-            for az in self.azimuths:
-                yield (t, az)
-
     def generate_request_url( self, azimuth, tilt,
                              url = "https://developer.nrel.gov/api/pvwatts/",
                              version = "v6",
@@ -83,8 +70,8 @@ class DailyWACOutput:
             m0 = self.monthindex[m,0] # First day in year of month m
             m1 = self.monthindex[m,1] # Last day in year of month m
             self.daily_average_acout[ m, :, 
-                                     self.azimuths == az,
-                                     self.tilts == tilt ] = np.average( wac[ m0:m1,:], axis=0 )
+                                     (self.azimuth_tilts[:,0] == az) *
+                                     (self.azimuth_tilts[:,1] == tilt) ] = np.average( wac[ m0:m1,:], axis=0 )
         return None
 
 # Module Functions
@@ -95,9 +82,9 @@ def scan_azimuths_tilts( dwaco ):
     queries to NREL.
     Results are stored iteratively.
     """
-    # Iterate over all settings of Azimuth and Tilt at lat/long coordignates
+    # Iterate over all settings of Azimuth and Tilt at lat/long coordinates
     # and query AC Power output
-    for (tilt, az) in dwaco.azimuths_tilts():
+    for (az, tilt) in dwaco.azimuth_tilts:
         print(az, tilt)
         rurl = dwaco.generate_request_url( az, tilt )
         ac_out = dwaco.query_acoutput_from_nrel( rurl )
@@ -111,14 +98,15 @@ def write_average_ac_to_csv( dwaco, outfile, SEP='\t', WACFORMAT='{:.4f}',
     """
     with open(outfile, 'w') as f:
         header = 'Date' + SEP + \
-            SEP.join([HEADER.format(a,t) for t in dwaco.tilts for a in dwaco.azimuths])
+            SEP.join([HEADER.format(a,t) for (a, t) in dwaco.azimuth_tilts ])
         f.write(header + '\n')
         for month in months:
             for h in hours:
                 line = DATE.format(month+1, h) + SEP
-                line += SEP.join( [ WACFORMAT.format(ac)
-                    for t in dwaco.tilts for ac in
-                                        dwaco.daily_average_acout[month, h, :,
-                                                                  np.where(dwaco.tilts == t)[0][0]] ])
+                line += SEP.join( [ WACFORMAT.format(
+                    dwaco.daily_average_acout[ month, h, \
+                        (dwaco.azimuth_tilts[:,0] == a) * \
+                        (dwaco.azimuth_tilts[:,1] == t) ][0] ) \
+                        for (a, t) in dwaco.azimuth_tilts ] )
                 f.write(line + '\n')
     return None
