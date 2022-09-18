@@ -7,6 +7,7 @@ months = np.arange(12) # 0 .. 23
 hours = np.arange(24) # 0 .. 23
 daysPerMonth = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
 
+
 # Class definitions
 
 class DailyWACOutput:
@@ -48,18 +49,18 @@ class DailyWACOutput:
             + '&losses=' + losses \
             + '&timeframe=hourly'
         return requesturl
-    
-    def query_acoutput_from_nrel( self, requesturl ):
+
+    def query_acoutput_from_nrel(self, requesturl):
         """
         Sends query to NREL and returns the AC Power as array
         """
         # TODO: Handle exception correctly.
         # Calculate average on an ongoing basis and store last
-        # successful API reuqest in order to be able to restart.
-        with urlopen( requesturl, timeout=2) as response:
+        # successful API request in order to be able to restart.
+        with urlopen(requesturl, timeout=2) as response:
             out = json.loads(response.read())
-        return np.array( out['outputs']['ac'] )
-    
+        return np.array(out['outputs']['ac'])
+
     def calculate_daily_ac_average(self, wac, az, tilt):
         """
         Calculate average Wac output for each month and a fixed seting of
@@ -75,11 +76,12 @@ class DailyWACOutput:
                                      (self.azimuth_tilts[:,1] == tilt) ] = np.average( wac[ m0:m1,:], axis=0 )
         return None
 
+
 # Module Functions
 
-def scan_azimuths_tilts( dwaco ):
+def scan_azimuths_tilts(dwaco):
     """
-    Main function that scann all azimuth and tilt settings and sends
+    Main function that scans all azimuth and tilt settings and sends
     queries to NREL.
     Results are stored iteratively.
     """
@@ -87,13 +89,14 @@ def scan_azimuths_tilts( dwaco ):
     # and query AC Power output
     for (az, tilt) in dwaco.azimuth_tilts:
         print(az, tilt)
-        rurl = dwaco.generate_request_url( az, tilt )
-        ac_out = dwaco.query_acoutput_from_nrel( rurl )
-        dwaco.calculate_daily_ac_average( ac_out, az, tilt)
+        rurl = dwaco.generate_request_url(az, tilt)
+        ac_out = dwaco.query_acoutput_from_nrel(rurl)
+        dwaco.calculate_daily_ac_average(ac_out, az, tilt)
     return None
 
-def write_average_ac_to_csv( dwaco, outfile, SEP='\t', WACFORMAT='{:.4f}',
-                            DATE='M:{:02d}-H:{:02d}', HEADER='A:{}-T:{}' ):
+
+def write_average_ac_to_csv(dwaco, outfile, SEP='\t', WACFORMAT='{:.4f}',
+                            DATE='M:{:02d}-H:{:02d}', HEADER='A:{}-T:{}'):
     """
     Writes the average AC power to CSV file.
     """

@@ -1,2 +1,4 @@
 *.pyc
 Settings.py
+output/*.pdf
+*.pdf
