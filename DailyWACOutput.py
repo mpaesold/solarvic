@@ -63,7 +63,7 @@ class DailyWACOutput:
 
     def calculate_daily_ac_average(self, wac, az, tilt):
         """
-        Calculate average Wac output for each month and a fixed seting of
+        Calculate average Wac output for each month and a fixed setting of
         azimuth and tilt.
         """
         wac = wac.reshape( (365, 24) )
@@ -142,7 +142,7 @@ def plot_hourly_power_output(pout, outfile, savefig=True):
     Plot typical day power output
     """
     plt.plot(pout)
-    plt.ylabel('Power per hour')
+    plt.ylabel('A/C Power Output (kW)')
     plt.xlabel('Hour')
     plt.xticks( hours )
     plt.legend( months+1 )

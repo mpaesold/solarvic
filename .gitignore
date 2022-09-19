@@ -1,4 +1,6 @@
 *.pyc
-Settings.py
+# Settings.py
 output/*.pdf
 *.pdf
+venv
+.idea
