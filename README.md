@@ -9,8 +9,8 @@ It takes as input
 
 Method
 1. The various arrays are modelled using the NREL api to calculate representative daily power production for the combined set of arrays for each month of the year
-2. The calendar is matched with the consumption to model consumption for 2 typical days per month - a working day, and a non-working day.
-3. Net power demand is calculated per hour of the day, per day type for each month of the year
+2. The calendar is matched with the consumption to model hourly consumption for 2 typical days per month - a working day, and a non-working day.
+3. Net power demand is calculated per hour of the day, per day type for each month of the year by [demand kW] - [production kW] for each hour of the typical days.
 4. Potential annual savings are calculated based on reduced consumption and profit from selling to the grid.
 
 Next Steps
