@@ -6,3 +6,4 @@ output/*.pdf
 venv
 .idea/
 __pycache__/
+excel/
