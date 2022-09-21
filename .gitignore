@@ -1,6 +1,8 @@
 *.pyc
+*.npy
 Settings.py
 output/*.pdf
 *.pdf
 venv
-.idea
+.idea/
+__pycache__/
