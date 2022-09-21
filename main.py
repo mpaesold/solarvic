@@ -32,19 +32,23 @@ def main():
     pout_daily = dwaco.calculate_power_output_daily(pout_hourly)
     pout_monthly = dwaco.calculate_power_output_monthly(pout_daily)
 
-    print('Hourly power production per month:')
-    print('Hour', ':\t', '\t'.join('{}'.format(m) for m in np.arange(12) + 1))
+    pp(np.arange(12) + 1, 'Hourly power production per month:', format='{}')
     for idx in range(24):
-        print(idx, ':\t', '\t'.join('{:.2f}'.format(p) for p in pout_hourly[idx, :]))
-
-    print('Daily power production:')
-    print('\t', '\t'.join('{:.2f}'.format(p) for p in pout_daily))
-
-    print('Monthly power production:')
-    print('\t', '\t'.join('{:.0f}'.format(p) for p in pout_monthly))
+        pp(pout_hourly[idx, :])
+    pp(pout_daily, 'Daily power production:')
+    pp(pout_monthly, 'Monthly power production:', format='{:.0f}')
 
     dwaco.plot_hourly_power_output(pout_hourly, outfileplot)
     return 0
+
+def pp(outputs, title='', format='{:.2f}'):
+    """
+    Write tables to output
+    """
+    if title:
+        print(title)
+    print('\t', '\t'.join(format.format(o) for o in outputs))
+    return None
 
 
 if __name__ == "__main__":
