@@ -1,5 +1,6 @@
 import Settings
 import solarvic.DailyWACOutput as dwaco
+import solarvic.consumption as consumption
 import numpy as np
 import os
 
@@ -13,12 +14,9 @@ def main():
     azimuth_tilts = data[:, 2:4]
     areas = data[:, 4]
     holidays_file = os.path.join(os.path.curdir, 'input', 'holidays.csv')
-    holidays = np.genfromtxt(holidays_file, usecols=(0), dtype='datetime64[D]',
-                             skip_header=1, delimiter=',')
+    holidays = consumption.import_holidays(holidays_file)
     consumption_file = os.path.join(os.path.curdir, 'input', 'consumption.csv')
-    consumption = np.genfromtxt(consumption_file, usecols=(1, 2, 6, 7),
-                                dtype=('datetime64[m]', int, float, 'U4'), 
-                                skip_header=1, delimiter=',')
+    consump = consumption.import_consumption(consumption_file)
 
     # Output files
     outfile = os.path.join(os.path.curdir, 'output',
@@ -31,7 +29,7 @@ def main():
     print('Areas:\n', areas)
 
     print(holidays)
-    print(consumption)
+    print(consump)
 
     #dailywacouput = dwaco.DailyWACOutput(
     #    lat, long,
