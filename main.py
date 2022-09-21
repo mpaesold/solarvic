@@ -1,5 +1,5 @@
 import Settings
-import DailyWACOutput as dwaco
+import solarvic.DailyWACOutput as dwaco
 import numpy as np
 import os
 
