@@ -29,45 +29,70 @@ def split_consumption_according_daytype(con_raw, holidays,
     occured.
     """
     consumption = {}
-    for daytype in daytypes:
-        consumption[daytype] = {}
+    days = {}
+    for dt in daytypes:
+        consumption[dt] = {}
+        days[dt] = {}
     for con in con_raw:
         day = np.datetime64(con[0], 'D')
-        daytype = daytypes[0]
+        dt = daytypes[0]
         if day in holidays or not np.is_busday(day):
-            daytype = daytypes[1]
+            dt = daytypes[1]
+
         time = con[0].astype(date)
-
-        if consumption[daytype].get(time.month):
-            dic = consumption[daytype][time.month]
-            dic['consumption'][con[1]-1] += con[2]
-            dic['days'][time.day-1] = 1
+        if time.month in consumption[dt]:
+            consumption[dt][time.month][con[1]-1] += con[2]
+            days[dt][time.month][time.day-1] = 1
         else:
-            intervals = np.zeros((96)) # TODO: Hardcoded number of intervals!
-            intervals[con[1]-1] = con[2]
-            days = np.zeros((31)) # TODO: Hardcoded number of days!
-            days[time.day-1] = 1
-            consumption[daytype][time.month] = {'consumption': intervals,
-                                                'days': days}
-    return consumption
+            consumption[dt][time.month] = np.zeros((96)) # TODO: Hardcoded number of intervals!
+            days[dt][time.month] = np.zeros((31))
+            consumption[dt][time.month][con[1]-1] = con[2]
+            days[dt][time.month][time.day-1] = 1
+    return [consumption, days]
 
-def calc_demands(consump_raw, holidays):
+def calc_demands(consump_parsed, days):
     """
     Input: Raw consumption in 15 min intervals.
     Output: Average consumption per month and hour for school and non-school
     days.
     """
-    daytypes = ('schoolday', 'nonschoolday')
     demands = {}
-    consump_parsed = split_consumption_according_daytype(consump_raw, holidays,
-                                                         daytypes)
     for dt in consump_parsed:
         demands[dt] = np.zeros((24, 12))
         for m in consump_parsed[dt]:
-            days = np.sum(consump_parsed[dt][m]['days'])
-            con = consump_parsed[dt][m]['consumption'].reshape((24, 4))
-            demands[dt][:, m-1] = np.sum(con, axis=1)/days/1000
+            ndays = np.sum(days[dt][m])
+            con = consump_parsed[dt][m].reshape((24, 4))
+            demands[dt][:, m-1] = np.sum(con, axis=1)/ndays/1000
     return demands
+
+def calc_selfuse(demands, supply):
+    """
+    Calculate the amount of pout that is directly consumed.
+    Self-usage is calculated as minimum between demand and supply.
+    """
+    out = {}
+    for dt in demands:
+        out[dt] = np.minimum(demands[dt], supply)
+    return out
+
+def calc_netdemand(demands, supply):
+    """
+    Calculate the net demand. Can be less can zero.
+    """
+    out = {}
+    for dt in demands:
+        out[dt] = demands[dt] - supply
+    return out
+
+def calc_feedin(demands, supply):
+    """
+    Calculate the amount of power that can be supplied to the grid. 
+    Feed-in is calculated as the over-supplied power.
+    """
+    out = {}
+    for dt in demands:
+        out[dt] = np.maximum(np.zeros(np.shape(supply)), supply - demands[dt])
+    return out
 
 def main():
     holidays_file = './input/holidays.csv'

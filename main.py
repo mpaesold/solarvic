@@ -9,13 +9,14 @@ import matplotlib.pyplot as plt
 def main():
     calc_supply = False
     do_plotting = False
+    verbose = True
     ########################################
     #
     # SUPPLY CALCULATION: 
     #
     ########################################
-    # Import PV configuration
     if calc_supply:
+        # Import PV configuration
         pv_config = os.path.join(os.path.curdir, 'input', 'pv_config.csv')
         data = np.loadtxt(pv_config, skiprows=1)
         long = data[0, 0]
@@ -34,6 +35,7 @@ def main():
         print('Scan azimuth and tilt settings:')
         dwaco.scan_azimuths_tilts(dailywacouput)
         pout_hourly = dwaco.calculate_power_output_hourly(dailywacouput, areas)
+        np.save('./output/pout_hourly.npy', pout_hourly)
         pout_daily = dwaco.calculate_power_output_daily(pout_hourly)
         pout_monthly = dwaco.calculate_power_output_monthly(pout_daily)
 
@@ -41,9 +43,9 @@ def main():
         #outfile = os.path.join(os.path.curdir, 'output',
         #                       'out_lat{}_long{}.csv'.format(lat, long))
         #dwaco.write_average_ac_to_csv( dailywacouput, outfile )
-        pp(np.arange(12) + 1, 'Hourly power production per month:', format='{}')
-        for idx in range(24):
-            pp(pout_hourly[idx, :])
+        if verbose:
+            pp(np.arange(12) + 1, 'Hourly power production per month:', format='{}')
+            print_table(pout_hourly)
         pp(pout_daily, 'Daily power production:')
         pp(pout_monthly, 'Monthly power production:', format='{:.0f}')
         if do_plotting:
@@ -52,10 +54,12 @@ def main():
             plot(pout_hourly, 'Hour', 
                  'A/C Power Output (kW)',
                  'Typical day power output', outfile=outfile)
+    else:
+        pout_hourly = np.load('./output/pout_hourly.npy')
 
     ########################################
     #
-    # Demand calculation: 
+    # SAVINGS CALCULATION: 
     #
     ########################################
     # Import holidays and actual consumption
@@ -63,19 +67,31 @@ def main():
     holidays = consumption.import_holidays(holidays_file)
     consumption_file = os.path.join(os.path.curdir, 'input', 'consumption.csv')
     consump = consumption.import_consumption(consumption_file)
-
-    demands = consumption.calc_demands(consump, holidays)
-    for dt in demands:
-        print(dt)
-        for idx in range(len(demands[dt])):
-            pp(demands[dt][idx, :])
-        if do_plotting:
+    [consump_parsed, days] = consumption.split_consumption_according_daytype(consump,
+                                                                     holidays)
+    # Calculate demand
+    print('Calculate demands:')
+    demands = consumption.calc_demands(consump_parsed, days)
+    if verbose: print_consumption(demands)
+    if do_plotting:
+        for dt in demands:
             outfile = os.path.join(os.path.curdir, 'output',
                                    'demands_{}.pdf'.format(dt))
             plot(demands[dt], 'Hour', 
                  'Demand (kWh)',
                  'Typical demand', outfile=outfile)
-        
+    # Calculate self-use of power supply
+    print('Calculate self-use:')
+    selfuse = consumption.calc_selfuse(demands, pout_hourly)
+    if verbose: print_consumption(selfuse)
+    # Calculate net demand
+    print('Calculate net demand:')
+    netdemand = consumption.calc_netdemand(demands, pout_hourly)
+    if verbose: print_consumption(netdemand)
+    # Calculate feed-in
+    print('Calculate feed-in:')
+    feedin = consumption.calc_feedin(demands, pout_hourly)
+    if verbose: print_consumption(feedin)
     return 0
 
 def pp(outputs, title='', format='{:.2f}'):
@@ -85,6 +101,23 @@ def pp(outputs, title='', format='{:.2f}'):
     if title:
         print(title)
     print('\t', '\t'.join(format.format(o) for o in outputs))
+    return None
+
+def print_table(table):
+    """
+    Wrapper around pp function
+    """
+    for idx in range(len(table)):
+        pp(table[idx, :])
+    return None
+
+def print_consumption(consumption):
+    """
+    Wrapper around print_table function
+    """
+    for dt in consumption:
+        print(dt)
+        print_table(consumption[dt])
     return None
 
 def plot(out, xl, yl, ti, outfile=''):
