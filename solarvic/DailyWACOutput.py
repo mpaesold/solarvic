@@ -1,7 +1,6 @@
 import numpy as np
 from urllib.request import urlopen
 import json
-import matplotlib.pyplot as plt
 
 months = np.arange(12) # 0 .. 23
 hours = np.arange(24) # 0 .. 23
@@ -137,19 +136,3 @@ def calculate_power_output_monthly(pout_day):
     """
     return pout_day * daysPerMonth
 
-def plot_hourly_power_output(pout, outfile, savefig=True):
-    """
-    Plot typical day power output
-    """
-    plt.plot(pout)
-    plt.ylabel('A/C Power Output (kW)')
-    plt.xlabel('Hour')
-    plt.xticks( hours )
-    plt.legend( months+1 )
-    plt.title( 'Typical day power output' )
-    plt.grid(visible=True, axis='y')
-    if savefig:
-        plt.savefig(outfile)
-    else:
-        plt.show()
-    return None

@@ -21,22 +21,25 @@ def import_consumption(consumption_file):
                                 dtype=('datetime64[m]', int, float, 'U4'),
                                 skip_header=1, delimiter=',')
 
-def calc_average_consumption(consump_raw, holidays):
+def split_consumption_according_daytype(con_raw, holidays,
+                                        daytypes=('schoolday', 'nonschoolday')):
     """
-    Input: Raw consumption in 15 min intervals.
-    Output: Average consumption per month and hour for school and non-school
-    days.
+    Returns dictionary with daytypes as first set of key. Next level is month.
+    Contains fields with consumption and day of month where consumption
+    occured.
     """
-    consumption_avg = {'schoolday': {}, 'nonschoolday':{}}
-    for con in consump_raw:
+    consumption = {}
+    for daytype in daytypes:
+        consumption[daytype] = {}
+    for con in con_raw:
         day = np.datetime64(con[0], 'D')
-        daytype = 'schoolday'
+        daytype = daytypes[0]
         if day in holidays or not np.is_busday(day):
-            daytype = 'nonschoolday'
+            daytype = daytypes[1]
         time = con[0].astype(date)
 
-        if consumption_avg[daytype].get(time.month):
-            dic = consumption_avg[daytype][time.month]
+        if consumption[daytype].get(time.month):
+            dic = consumption[daytype][time.month]
             dic['consumption'][con[1]-1] += con[2]
             dic['days'][time.day-1] = 1
         else:
@@ -44,9 +47,27 @@ def calc_average_consumption(consump_raw, holidays):
             intervals[con[1]-1] = con[2]
             days = np.zeros((31)) # TODO: Hardcoded number of days!
             days[time.day-1] = 1
-            consumption_avg[daytype][time.month] = {'consumption': intervals,
-                                                    'days': days}
-    return consumption_avg
+            consumption[daytype][time.month] = {'consumption': intervals,
+                                                'days': days}
+    return consumption
+
+def calc_demands(consump_raw, holidays):
+    """
+    Input: Raw consumption in 15 min intervals.
+    Output: Average consumption per month and hour for school and non-school
+    days.
+    """
+    daytypes = ('schoolday', 'nonschoolday')
+    demands = {}
+    consump_parsed = split_consumption_according_daytype(consump_raw, holidays,
+                                                         daytypes)
+    for dt in consump_parsed:
+        demands[dt] = np.zeros((24, 12))
+        for m in consump_parsed[dt]:
+            days = np.sum(consump_parsed[dt][m]['days'])
+            con = consump_parsed[dt][m]['consumption'].reshape((24, 4))
+            demands[dt][:, m-1] = np.sum(con, axis=1)/days/1000
+    return demands
 
 def main():
     holidays_file = './input/holidays.csv'
@@ -55,13 +76,9 @@ def main():
     consump = import_consumption(consumption_file)
     #print(holidays)
     #print(consump)
-
     consump_avg = calc_average_consumption(consump, holidays)
-    for m in consump_avg['nonschoolday'].keys():
-        print('Month: ', m)
-        print(consump_avg['nonschoolday'][m]['consumption'])
-        print(consump_avg['nonschoolday'][m]['days'])
     return 0
+
 
 if __name__ == "__main__":
     main()
