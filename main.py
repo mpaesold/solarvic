@@ -71,9 +71,10 @@ def main():
     consump = consumption.import_consumption(consumption_file)
     [consump_parsed, days] = consumption.split_consumption_according_daytype(consump,
                                                                      holidays)
+    ndays = consumption.calc_total_days(days)
     # Calculate demand
     print('Calculate demands ...')
-    demands = consumption.calc_demands(consump_parsed, days)
+    demands = consumption.calc_demands(consump_parsed, ndays)
     if verbose: print_consumption(demands)
     if do_plotting:
         for dt in demands:
@@ -95,7 +96,6 @@ def main():
     feedin = consumption.calc_feedin(demands, pout_hourly)
     if verbose: print_consumption(feedin)
     # Calculate total feed-in and self-use
-    ndays = consumption.calc_total_days(days)
     selfuse_tot = consumption.calc_total_kwh(selfuse, ndays)
     feedin_tot = consumption.calc_total_kwh(feedin, ndays)
     # Print results

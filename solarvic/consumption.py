@@ -50,7 +50,7 @@ def split_consumption_according_daytype(con_raw, holidays,
             days[dt][time.month][time.day-1] = 1
     return [consumption, days]
 
-def calc_demands(consump_parsed, days):
+def calc_demands(consump_parsed, ndays):
     """
     Input: Raw consumption in 15 min intervals.
     Output: Average consumption per month and hour for school and non-school
@@ -60,9 +60,9 @@ def calc_demands(consump_parsed, days):
     for dt in consump_parsed:
         demands[dt] = np.zeros((24, 12))
         for m in consump_parsed[dt]:
-            ndays = np.sum(days[dt][m])
+            nday = ndays[dt][m-1]
             con = consump_parsed[dt][m].reshape((24, 4))
-            demands[dt][:, m-1] = np.sum(con, axis=1)/ndays/1000
+            demands[dt][:, m-1] = np.sum(con, axis=1)/nday/1000
     return demands
 
 def calc_selfuse(demands, supply):
