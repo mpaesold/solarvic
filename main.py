@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 def main():
     calc_supply = False
     do_plotting = False
-    verbose = True
+    verbose = False
+    price_per_kwh = 0.226
     ########################################
     #
     # SUPPLY CALCULATION: 
@@ -24,6 +25,7 @@ def main():
         azimuth_tilts = data[:, 2:4]
         areas = data[:, 4]
         # Write summary of inputs
+        print('Inputs:\n')
         print('Lat:', lat, 'Long:', long)
         print('Azimuths and tilts:\n', azimuth_tilts)
         print('Areas:\n', areas)
@@ -32,7 +34,7 @@ def main():
             lat, long,
             Settings.nrel_api_key, azimuth_tilts)
         # Calculation - Scan azimuth and tilt settings and calculate power output
-        print('Scan azimuth and tilt settings:')
+        print('\nScan azimuth and tilt settings ...')
         dwaco.scan_azimuths_tilts(dailywacouput)
         pout_hourly = dwaco.calculate_power_output_hourly(dailywacouput, areas)
         np.save('./output/pout_hourly.npy', pout_hourly)
@@ -46,8 +48,8 @@ def main():
         if verbose:
             pp(np.arange(12) + 1, 'Hourly power production per month:', format='{}')
             print_table(pout_hourly)
-        pp(pout_daily, 'Daily power production:')
-        pp(pout_monthly, 'Monthly power production:', format='{:.0f}')
+        pp(pout_daily, 'Daily power production (kWh):')
+        pp(pout_monthly, 'Monthly power production (kWh):', format='{:.0f}')
         if do_plotting:
             outfile = os.path.join(os.path.curdir, 'output',
                                        'typical_day_power.pdf')
@@ -70,7 +72,7 @@ def main():
     [consump_parsed, days] = consumption.split_consumption_according_daytype(consump,
                                                                      holidays)
     # Calculate demand
-    print('Calculate demands:')
+    print('Calculate demands ...')
     demands = consumption.calc_demands(consump_parsed, days)
     if verbose: print_consumption(demands)
     if do_plotting:
@@ -81,17 +83,31 @@ def main():
                  'Demand (kWh)',
                  'Typical demand', outfile=outfile)
     # Calculate self-use of power supply
-    print('Calculate self-use:')
+    print('Calculate self-use ...')
     selfuse = consumption.calc_selfuse(demands, pout_hourly)
     if verbose: print_consumption(selfuse)
     # Calculate net demand
-    print('Calculate net demand:')
+    print('Calculate net demand ...')
     netdemand = consumption.calc_netdemand(demands, pout_hourly)
     if verbose: print_consumption(netdemand)
     # Calculate feed-in
-    print('Calculate feed-in:')
+    print('Calculate feed-in ...')
     feedin = consumption.calc_feedin(demands, pout_hourly)
     if verbose: print_consumption(feedin)
+    # Calculate total feed-in and self-use
+    ndays = consumption.calc_total_days(days)
+    selfuse_tot = consumption.calc_total_kwh(selfuse, ndays)
+    feedin_tot = consumption.calc_total_kwh(feedin, ndays)
+    # Print results
+    for dt in ndays:
+        print('Number of ', dt)
+        pp(ndays[dt], '', '{:.0f}')
+    pp(selfuse_tot, 'Selfuse total (kWh):', '{:.0f}')
+    pp(feedin_tot, 'Feedin total (kWh):', '{:.0f}')
+    pp(selfuse_tot + feedin_tot, 'PV power output (kWh):', '{:.0f}')
+    pp(selfuse_tot * price_per_kwh, 'Self use savings (AUD)', '{:.0f}') 
+    print('\nTotal self-use savaings (AUD):\t {:.2f}'.format(np.sum(selfuse_tot *
+                                                            price_per_kwh)))
     return 0
 
 def pp(outputs, title='', format='{:.2f}'):

@@ -94,6 +94,26 @@ def calc_feedin(demands, supply):
         out[dt] = np.maximum(np.zeros(np.shape(supply)), supply - demands[dt])
     return out
 
+def calc_total_days(days):
+    """
+    Calculate the sum total per daytype for each month.
+    """
+    res = {}
+    for dt in days:
+        res[dt] = np.zeros((12))
+        for idx in range(len(res[dt])):
+            res[dt][idx] = np.sum(days[dt][idx+1])
+    return res
+
+def calc_total_kwh(kwh, ndays):
+    res = np.zeros((12))
+    for dt in kwh:
+        tot = np.sum(kwh[dt], axis=0)
+        for idx in range(len(tot)):
+            tot[idx] *= np.sum(ndays[dt][idx])
+        res += tot
+    return res
+
 def main():
     holidays_file = './input/holidays.csv'
     holidays = import_holidays(holidays_file)
