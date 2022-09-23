@@ -60,9 +60,8 @@ def calc_demands(consump_parsed, ndays):
     for dt in consump_parsed:
         demands[dt] = np.zeros((24, 12))
         for m in consump_parsed[dt]:
-            nday = ndays[dt][m-1]
             con = consump_parsed[dt][m].reshape((24, 4))
-            demands[dt][:, m-1] = np.sum(con, axis=1)/nday/1000
+            demands[dt][:, m-1] = np.sum(con, axis=1)/ndays[dt][m-1]/1000
     return demands
 
 def calc_selfuse(demands, supply):
