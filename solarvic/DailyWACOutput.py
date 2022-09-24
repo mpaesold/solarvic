@@ -2,15 +2,15 @@ import numpy as np
 from urllib.request import urlopen
 import json
 
-months = np.arange(12) # 0 .. 23
-hours = np.arange(24) # 0 .. 23
+months = np.arange(12)  # 0 .. 11
+hours = np.arange(24)  # 0 .. 23
 daysPerMonth = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
 
 
 # Class definitions
 
 class DailyWACOutput:
-    
+
     def __init__(self,
                  lat, long, api_key, azimuth_tilts):
         """
@@ -20,21 +20,22 @@ class DailyWACOutput:
         self.long = long
         self.api_key = api_key
         self.azimuth_tilts = azimuth_tilts
-        self.daily_average_acout = np.zeros( (len(months),
-            len(hours),
-            len(self.azimuth_tilts) ))
-        self.monthindex = np.array( [ [ np.sum( daysPerMonth[:m] ), np.sum( daysPerMonth[:m+1] )]
-                  for m in months ] )
+        self.daily_average_acout = np.zeros((len(months),
+                                            len(hours),
+                                            len(self.azimuth_tilts)))
+        self.monthindex = np.array([[np.sum(daysPerMonth[:m]),
+                                     np.sum(daysPerMonth[:m+1])]
+                                    for m in months])
         return None
-    
-    def generate_request_url( self, azimuth, tilt,
-                             url = "https://developer.nrel.gov/api/pvwatts/",
-                             version = "v6",
-                             format = "json",  # json or xml
-                             system_capacity = '1',
-                             array_type = '1',
-                             module_type = '1',
-                             losses = '15'):
+
+    def generate_request_url(self, azimuth, tilt,
+                             url="https://developer.nrel.gov/api/pvwatts/",
+                             version="v6",
+                             format="json",  # json or xml
+                             system_capacity='1',
+                             array_type='1',
+                             module_type='1',
+                             losses='15'):
         """
         Returns a string for the request URL that can be sent to NREL.
         """
@@ -65,14 +66,15 @@ class DailyWACOutput:
         Calculate average Wac output for each month and a fixed setting of
         azimuth and tilt.
         """
-        wac = wac.reshape( (365, 24) )
+        wac = wac.reshape((365, 24))
         for m in months:
             # Average over hours for each month and
-            m0 = self.monthindex[m,0] # First day in year of month m
-            m1 = self.monthindex[m,1] # Last day in year of month m
-            self.daily_average_acout[ m, :, 
-                                     (self.azimuth_tilts[:,0] == az) *
-                                     (self.azimuth_tilts[:,1] == tilt) ] = np.average( wac[ m0:m1,:], axis=0 )
+            m0 = self.monthindex[m, 0]  # First day in year of month m
+            m1 = self.monthindex[m, 1]  # Last day in year of month m
+            self.daily_average_acout[m, :,
+                                     (self.azimuth_tilts[:, 0] == az) *
+                                     (self.azimuth_tilts[:, 1] == tilt)] = \
+                np.average(wac[m0:m1, :], axis=0)
         return None
 
 
@@ -101,28 +103,30 @@ def write_average_ac_to_csv(dwaco, outfile, SEP='\t', WACFORMAT='{:.4f}',
     """
     with open(outfile, 'w') as f:
         header = 'Date' + SEP + \
-            SEP.join([HEADER.format(a,t) for (a, t) in dwaco.azimuth_tilts ])
+            SEP.join([HEADER.format(a, t) for (a, t) in dwaco.azimuth_tilts])
         f.write(header + '\n')
         for month in months:
             for h in hours:
                 line = DATE.format(month+1, h) + SEP
-                line += SEP.join( [ WACFORMAT.format(
-                    dwaco.daily_average_acout[ month, h, \
-                        (dwaco.azimuth_tilts[:,0] == a) * \
-                        (dwaco.azimuth_tilts[:,1] == t) ][0] ) \
-                        for (a, t) in dwaco.azimuth_tilts ] )
+                line += SEP.join([WACFORMAT.format(
+                    dwaco.daily_average_acout[month, h,
+                        (dwaco.azimuth_tilts[:, 0] == a) *
+                        (dwaco.azimuth_tilts[:, 1] == t)][0])
+                        for (a, t) in dwaco.azimuth_tilts])
                 f.write(line + '\n')
     return None
 
-def calculate_power_output_hourly( dwaco, areas ):
+
+def calculate_power_output_hourly(dwaco, areas):
     """
     Calculate expected power output per hour of day by month.
     """
     pout = np.zeros((len(hours), len(months)))
     for m in months:
         for h in hours:
-            pout[h, m] = np.dot(dwaco.daily_average_acout[m, h, :], areas) 
+            pout[h, m] = np.dot(dwaco.daily_average_acout[m, h, :], areas)
     return pout / 1000.0
+
 
 def calculate_power_output_daily(pout_hr):
     """
@@ -130,9 +134,9 @@ def calculate_power_output_daily(pout_hr):
     """
     return np.sum(pout_hr, axis=0)
 
+
 def calculate_power_output_monthly(pout_day):
     """
     Calculate expected power output for whole month.
     """
     return pout_day * daysPerMonth
-

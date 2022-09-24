@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 def main():
-    calc_supply = False
+    calc_supply = True
     do_plotting = False
     verbose = False
     price_per_kwh = 0.226
