@@ -24,25 +24,20 @@ def import_consumption(consumption_file):
                          skip_header=1, delimiter=',')
 
 
-def split_consumption_according_daytype(con_raw, holidays,
-                                        daytypes=('schoolday',
-                                                  'nonschoolday')):
+def split_consumption_according_daytype(con_raw, holidays, category):
     """
     Returns dictionary with daytypes as first set of key. Next level is month.
     Contains fields with consumption and day of month where consumption
     occured.
+    Catergory is a funtion handle that returns the day-type based on date.
     """
     consumption = {}
     days = {}
-    for dt in daytypes:
-        consumption[dt] = {}
-        days[dt] = {}
     for con in con_raw:
-        day = np.datetime64(con[0], 'D')
-        dt = daytypes[0]
-        if day in holidays or not np.is_busday(day):
-            dt = daytypes[1]
-
+        dt = category(np.datetime64(con[0], 'D'))
+        if dt not in consumption:
+            consumption[dt] = {}
+            days[dt] = {}
         time = con[0].astype(date)
         if time.month in consumption[dt]:
             consumption[dt][time.month][con[1]-1] += con[2]

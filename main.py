@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 def main():
-    calc_supply = True
+    calc_supply = False
     do_plotting = False
     verbose = False
     price_per_kwh = 0.226
@@ -71,9 +71,22 @@ def main():
     holidays = consumption.import_holidays(holidays_file)
     consumption_file = os.path.join(os.path.curdir, 'input', 'consumption.csv')
     consump = consumption.import_consumption(consumption_file)
+
+    def is_schoolday(day, holidays):
+        """
+        Define which day is a school day and which is not.
+        """
+        cat = 'schoolday'
+        if day in holidays or not np.is_busday(day):
+            cat = 'nonschoolday'
+        return cat
+
+    def daytype(day):
+        return is_schoolday(day, holidays)
     [consump_parsed, days] =\
         consumption.split_consumption_according_daytype(consump,
-                                                        holidays)
+                                                        holidays,
+                                                        daytype)
     ndays = consumption.calc_total_days(days)
     # Calculate demand
     print('Calculate demands ...')
