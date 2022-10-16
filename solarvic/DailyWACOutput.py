@@ -7,22 +7,15 @@ hours = np.arange(24)  # 0 .. 23
 daysPerMonth = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
 
 
-# Class definitions
-
 class DailyWACOutput:
 
-    def __init__(self,
-                 lat, long, api_key, azimuth_tilts):
+    def __init__(self, lat, long, api_key):
         """
         Creator for class DailyWACOutput.
         """
         self.lat = lat
         self.long = long
         self.api_key = api_key
-        self.azimuth_tilts = azimuth_tilts
-        self.daily_average_acout = np.zeros((len(months),
-                                            len(hours),
-                                            len(self.azimuth_tilts)))
         self.monthindex = np.array([[np.sum(daysPerMonth[:m]),
                                      np.sum(daysPerMonth[:m+1])]
                                     for m in months])
@@ -50,35 +43,53 @@ class DailyWACOutput:
             + '&timeframe=hourly'
         return requesturl
 
-    def query_acoutput_from_nrel(self, requesturl):
-        """
-        Sends query to NREL and returns the AC Power as array
-        """
-        # TODO: Handle exception correctly.
-        # Calculate average on an ongoing basis and store last
-        # successful API request in order to be able to restart.
-        with urlopen(requesturl, timeout=2) as response:
-            out = json.loads(response.read())
-        return np.array(out['outputs']['ac'])
-
-    def calculate_daily_ac_average(self, wac, az, tilt):
-        """
-        Calculate average Wac output for each month and a fixed setting of
-        azimuth and tilt.
-        """
-        wac = wac.reshape((365, 24))
-        for m in months:
-            # Average over hours for each month and
-            m0 = self.monthindex[m, 0]  # First day in year of month m
-            m1 = self.monthindex[m, 1]  # Last day in year of month m
-            self.daily_average_acout[m, :,
-                                     (self.azimuth_tilts[:, 0] == az) *
-                                     (self.azimuth_tilts[:, 1] == tilt)] = \
-                np.average(wac[m0:m1, :], axis=0)
-        return None
-
 
 # Module Functions
+def write_daily_average_to_db(dbconnection, dwaco, acout, az, tilt):
+    cursor = dbconnection.cursor()
+    for m in months:
+        out = np.zeros((24, 7))
+        out[:, 0] = dwaco.long
+        out[:, 1] = dwaco.lat
+        out[:, 2] = m
+        out[:, 3] = hours
+        out[:, 4] = az
+        out[:, 5] = tilt
+        out[:, 6] = acout[:, m]
+        out = list(map(tuple, out))
+        query = "INSERT INTO acout VALUES(?, ?, ?, ?, ?, ?, ?)"
+        cursor.executemany(query, out)
+        dbconnection.commit()
+    return None
+
+
+def calculate_daily_ac_average(dwaco, wac):
+    """
+    Calculate average Wac output for each month.
+
+    Output: Average ACout for each month and hour
+    """
+    wac = wac.reshape((365, 24))
+    daily_average_acout = np.zeros((len(hours), len(months)))
+    for m in months:
+        # Average over hours for each month and
+        m0 = dwaco.monthindex[m, 0]  # First day in year of month m
+        m1 = dwaco.monthindex[m, 1]  # Last day in year of month m
+        daily_average_acout[:, m] = np.average(wac[m0:m1, :], axis=0)
+    return daily_average_acout
+
+
+def query_acoutput_from_nrel(requesturl):
+    """
+    Sends query to NREL and returns the AC Power as array
+    """
+    # TODO: Handle exception correctly.
+    # Calculate average on an ongoing basis and store last
+    # successful API request in order to be able to restart.
+    with urlopen(requesturl, timeout=2) as response:
+        out = json.loads(response.read())
+    return np.array(out['outputs']['ac'])
+
 
 def scan_azimuths_tilts(dwaco):
     """
@@ -120,10 +131,16 @@ def write_average_ac_to_csv(dwaco, outfile, SEP='\t', WACFORMAT='{:.4f}',
 def calculate_power_output_hourly(dwaco, areas):
     """
     Calculate expected power output per hour of day by month.
+
+    Expected power output is the sum of all panels peak power for all months
+    and hours.
     """
     pout = np.zeros((len(hours), len(months)))
     for m in months:
         for h in hours:
+            #  Dot product sums all panels for every month and hour.
+            #  daily_average_out only contains entries for azimuth and tilt
+            #  setting of PV panels.
             pout[h, m] = np.dot(dwaco.daily_average_acout[m, h, :], areas)
     return pout / 1000.0
 
