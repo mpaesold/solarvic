@@ -15,6 +15,7 @@ def main():
     dwaco.scan_azimuths_tilts(dailywacouput)
     con = sqlite3.connect("./output/solarvic.db")
     dailywacouput.write_daily_average_to_db(con)
+    # res = cur.execute("SELECT month, hour, acout FROM acout WHERE azimuth = 180 AND tilt = 10")
     return None
 
 

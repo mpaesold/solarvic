@@ -4,16 +4,19 @@ import solarvic.consumption as consumption
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import sqlite3
 
 
 def main():
-    calc_supply = False
+    calc_supply = True
     do_plotting = False
     verbose = False
     price_per_kwh = 0.226
+    dbfile = os.path.join(os.path.curdir, 'output', 'solarvic.db')
+    dbcon = sqlite3.connect(dbfile)
     ########################################
     #
-    # SUPPLY CALCULATION:
+    # IMPORT DATA:
     #
     ########################################
     if calc_supply:
@@ -22,14 +25,22 @@ def main():
         data = np.loadtxt(pv_config, skiprows=1)
         long = data[0, 0]
         lat = data[0, 1]
-        azimuth_tilts = data[:, 2:4]
+        # azimuth_tilts = data[:, 2:4]
+        azimuths = np.arange(0, 360, 90)
+        tilts = np.array([10, 20, 30])
+        azimuth_tilts = np.array([[az, t] for az in azimuths for t in tilts])
         areas = data[:, 4]
         # Write summary of inputs
         print('Inputs:\n')
         print('Lat:', lat, 'Long:', long)
         print('Azimuths and tilts:\n', azimuth_tilts)
         print('Areas:\n', areas)
-
+    ########################################
+    #
+    # SUPPLY CALCULATION:
+    #
+    ########################################
+    if calc_supply:
         dailywacouput = dwaco.DailyWACOutput(
             lat, long,
             Settings.nrel_api_key, azimuth_tilts)
